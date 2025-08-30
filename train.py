@@ -19,15 +19,17 @@ def main():
     cfg = load_config()
     setup_logging(cfg)
 
-    lr = float(cfg.get("rl", {}).get("learning_rate", 3e-4))
+    rl_cfg = cfg.get("rl", {})
+    lr = float(rl_cfg.get("learning_rate", 3e-4))
+    ent_coef = float(rl_cfg.get("ent_coef", 0.01))
     os.makedirs(args.checkpoint, exist_ok=True)
 
     if args.offline:
         from planner.ppo import build_and_train_offline
-        model = build_and_train_offline(total_timesteps=args.timesteps, lr=lr, log_dir=os.path.join(args.checkpoint, "tb"))
+        model = build_and_train_offline(total_timesteps=args.timesteps, lr=lr, ent_coef=ent_coef, log_dir=os.path.join(args.checkpoint, "tb"))
     else:
         from planner.ppo import build_and_train_ppo
-        model = build_and_train_ppo(total_timesteps=args.timesteps, lr=lr, log_dir=os.path.join(args.checkpoint, "tb"))
+        model = build_and_train_ppo(total_timesteps=args.timesteps, lr=lr, ent_coef=ent_coef, log_dir=os.path.join(args.checkpoint, "tb"))
     path = os.path.join(args.checkpoint, "model.zip")
     model.save(path)
     logger.info("Saved PPO checkpoint to %s", path)

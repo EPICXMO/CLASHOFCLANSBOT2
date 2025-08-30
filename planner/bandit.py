@@ -8,7 +8,7 @@ from typing import List
 @dataclass
 class EpsilonGreedy:
     k: int
-    epsilon: float = 0.1
+    epsilon: float = 0.3
     counts: List[int] = field(default_factory=list)
     values: List[float] = field(default_factory=list)
 
@@ -37,3 +37,11 @@ class EpsilonGreedy:
         self.counts.extend([0] * add)
         self.values.extend([0.0] * add)
         self.k = k
+
+    def decay(self, episode: int, total: int = 100, min_epsilon: float = 0.05) -> None:
+        if total <= 0:
+            return
+        frac = max(0.0, min(1.0, episode / float(total)))
+        start = 0.3
+        end = min_epsilon
+        self.epsilon = max(end, start - (start - end) * frac)

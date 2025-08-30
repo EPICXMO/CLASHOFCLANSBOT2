@@ -12,12 +12,13 @@ logger = logging.getLogger(__name__)
 
 
 class ADBController:
-    def __init__(self, host: str = "127.0.0.1", port: int = 5555, connect_timeout_s: int = 5, dry_run: bool = False):
+    def __init__(self, host: str = "127.0.0.1", port: int = 5555, connect_timeout_s: int = 5, dry_run: bool = False, serial: Optional[str] = None):
         self.host = host
         self.port = port
         self.connect_timeout_s = connect_timeout_s
         self.dry_run = dry_run or (adb is None)
         self._dev = None
+        self.serial = serial
 
     def connect(self) -> bool:
         if self.dry_run:
@@ -25,7 +26,7 @@ class ADBController:
             return False
         try:
             deadline = time.time() + self.connect_timeout_s
-            serial = f"{self.host}:{self.port}"
+            serial = self.serial or f"{self.host}:{self.port}"
             while time.time() < deadline:
                 try:
                     self._dev = adb.device(serial)
@@ -90,4 +91,3 @@ class ADBController:
     def swipe_norm(self, nx1: float, ny1: float, nx2: float, ny2: float, duration_ms: int = 400) -> None:
         w, h = self.window_size()
         self.swipe(int(nx1 * w), int(ny1 * h), int(nx2 * w), int(ny2 * h), duration_ms)
-

@@ -5,7 +5,8 @@ adb:
   host: 127.0.0.1
   port: 5555
   connect_timeout_s: 5
-  dry_run: true
+  dry_run: false
+  serial: 127.0.0.1:5555
 ocr:
   enabled: true
   lang: en
@@ -34,7 +35,7 @@ rl:
   gamma: 0.99
   n_steps: 2048
   batch_size: 64
-  ent_coef: 0.0
+  ent_coef: 0.01
   vf_coef: 0.5
   gae_lambda: 0.95
   clip_range: 0.2

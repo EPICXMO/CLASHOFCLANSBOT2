@@ -13,7 +13,7 @@ from utils.logging import setup_logging
 from actions.adb import ADBController
 from vision.capture import Capture
 from vision.detect import UIDetector
-from state import GameState
+from state.game_state import GameState
 from planner.rules import RulePlanner
 
 
@@ -49,6 +49,7 @@ def play_loop(cfg: Dict[str, Any], seed: Optional[int] = None):
         port=int(adb_cfg.get("port", 5555)),
         connect_timeout_s=int(adb_cfg.get("connect_timeout_s", 5)),
         dry_run=bool(adb_cfg.get("dry_run", True)),
+        serial=str(adb_cfg.get("serial", "")) or None,
     )
     controller.connect()
 
@@ -62,6 +63,7 @@ def play_loop(cfg: Dict[str, Any], seed: Optional[int] = None):
     prev_enemy_towers = 3
     ep = EpisodeLogger()
     pending = None
+    episode_idx = 0
 
     def state_vec(s: GameState):
         elixir_norm = s.elixir / 10.0
@@ -77,10 +79,14 @@ def play_loop(cfg: Dict[str, Any], seed: Optional[int] = None):
         ui = detector.detect_ui(frame)
         state.update_from_frame(frame, ui)
 
-        # Tap battle button region
-        if ui.get("battle_button") is not None:
-            x1, y1, x2, y2 = ui["battle_button"]
-            controller.click(int((x1 + x2) / 2), int((y1 + y2) / 2))
+        in_battle = bool(ui.get("in_battle", False))
+        if not in_battle:
+            # Try tapping a top-region YOLO button (e.g., mode switcher), else battle button ROI
+            top_buttons = [b for b in ui.get("yolo", {}).get("button", []) if (b[1] + b[3]) / 2 < frame.shape[0] * 0.25]
+            target_btn = top_buttons[0] if top_buttons else ui.get("battle_button")
+            if target_btn:
+                x1, y1, x2, y2 = target_btn
+                controller.click(int((x1 + x2) / 2), int((y1 + y2) / 2))
 
         # Handle popups: YOLO 'button' with OCR text 'OK'
         try:
@@ -93,9 +99,9 @@ def play_loop(cfg: Dict[str, Any], seed: Optional[int] = None):
         except Exception:
             pass
 
-        # Basic action cadence
+        # Basic action cadence (only while in battle)
         now = time.time()
-        if now - last_action_ts > 0.8:
+        if in_battle and (now - last_action_ts > 0.8):
             plan = planner.plan_battle(state, frame)
             if plan is not None:
                 card_idx, (nx, ny) = plan
@@ -115,11 +121,13 @@ def play_loop(cfg: Dict[str, Any], seed: Optional[int] = None):
                 reward_signal = gold_delta + crown_bonus + win_bonus
                 planner.record_outcome(card_idx, float(reward_signal))
                 obs = state_vec(state)
+                troop_names = ui.get("yolo_meta", {}).get("troop_names", [])
                 record = {
                     "t": time.time(),
                     "state": obs,
                     "action": {"card": card_idx, "nx": nx, "ny": ny},
                     "reward": reward_signal,
+                    "enemy_troops": {"count": len(troop_names), "types": sorted(list(set(troop_names)))},
                 }
                 if pending is not None:
                     pending["next_state"] = obs
@@ -135,6 +143,10 @@ def play_loop(cfg: Dict[str, Any], seed: Optional[int] = None):
                     daily_wins,
                     3 - enemy_tower_count,
                 )
+                # Update trackers and exploration decay when a battle ends (wins increment)
+                if daily_wins > prev_daily_wins:
+                    episode_idx += 1
+                    planner.set_exploration(episode_idx)
                 prev_gold = gold
                 prev_daily_wins = daily_wins
                 prev_enemy_towers = enemy_tower_count
@@ -166,4 +178,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

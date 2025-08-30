@@ -7,7 +7,7 @@ import yaml
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "resolution": {"width": 1920, "height": 1080},
-    "adb": {"host": "127.0.0.1", "port": 5555, "connect_timeout_s": 5, "dry_run": True},
+    "adb": {"host": "127.0.0.1", "port": 5555, "connect_timeout_s": 5, "dry_run": True, "serial": "127.0.0.1:5555"},
     "ocr": {
         "enabled": True,
         "lang": "en",
@@ -34,7 +34,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "gamma": 0.99,
         "n_steps": 2048,
         "batch_size": 64,
-        "ent_coef": 0.0,
+        "ent_coef": 0.01,
         "vf_coef": 0.5,
         "gae_lambda": 0.95,
         "clip_range": 0.2,

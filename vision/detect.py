@@ -99,7 +99,8 @@ class UIDetector:
         ui["safe_zone"] = templates.roi_to_pixels(frame, self.safe_zone_roi)
 
         # YOLO detections
-        ui["yolo"] = {"troop": [], "my_tower": [], "enemy_tower": [], "button": [], "card": [], "chest": [], "rewards_button": [], "upgrade_button": []}
+        ui["yolo"] = {"troop": [], "my_tower": [], "enemy_tower": [], "button": [], "card": [], "chest": [], "rewards_button": [], "upgrade_button": [], "elixir_bar": []}
+        ui["yolo_meta"] = {"troop_names": []}
         for det in self._predict_yolo(frame):
             label = det.get("label", "")
             conf = float(det.get("conf", 0.0))
@@ -115,6 +116,8 @@ class UIDetector:
                 use_label = "my_tower" if cy > h * 0.5 else "enemy_tower"
             if conf >= self.yolo_conf and use_label in ui["yolo"]:
                 ui["yolo"][use_label].append(box)
+                if use_label == "troop":
+                    ui["yolo_meta"]["troop_names"].append(str(name))
             else:
                 # Save low-conf/unknown crops for later labeling
                 if self.save_unknown:
@@ -139,6 +142,8 @@ class UIDetector:
             ui["rewards"] = self.ocr.read_rewards(frame, tuple(self.rewards_roi_center))
         except Exception:
             ui["rewards"] = {"gold": 0, "cards": 0}
+        # In-battle heuristic: towers present or elixir showing
+        ui["in_battle"] = bool(ui["yolo"]["my_tower"] or ui["yolo"]["enemy_tower"] or ui["yolo"]["elixir_bar"] or ui.get("elixir", 0) > 0)
         return ui
 
     def _predict_yolo(self, frame: np.ndarray) -> List[Dict]:
@@ -190,6 +195,8 @@ class UIDetector:
             return "card"
         if "button" in n or "ok" in n:
             return "button"
+        if "elixir" in n:
+            return "elixir_bar"
         if "tower" in n:
             # Side unknown -> generic tower; caller may split by y
             return "tower"

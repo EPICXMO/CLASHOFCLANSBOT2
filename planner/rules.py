@@ -20,7 +20,7 @@ class RulePlanner:
     """
 
     def __init__(self):
-        self.bandit = EpsilonGreedy(k=4, epsilon=0.1)
+        self.bandit = EpsilonGreedy(k=4, epsilon=0.3)
 
     def enemy_push_detected(self, ui: dict) -> bool:
         yolo = ui.get("yolo", {})
@@ -147,3 +147,7 @@ class RulePlanner:
             y2 = y1 + (y2 - y1) // 2  # upper half
             return self._random_point_in_zone(frame, (x1, y1, x2, y2))
         return self._random_point_in_zone(frame, None)
+
+    def set_exploration(self, episode_idx: int) -> None:
+        # Decay epsilon from 0.3 to 0.05 over 100 episodes
+        self.bandit.decay(episode_idx, total=100, min_epsilon=0.05)

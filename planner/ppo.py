@@ -77,12 +77,12 @@ class MockClashEnv(gym.Env if gym else object):  # type: ignore[misc]
         return self._obs(), float(reward), done, False, {}
 
 
-def build_and_train_ppo(total_timesteps: int = 2_000_000, lr: float = 3e-4, log_dir: str = "runs/ppo"):
+def build_and_train_ppo(total_timesteps: int = 2_000_000, lr: float = 3e-4, ent_coef: float = 0.01, log_dir: str = "runs/ppo"):
     if PPO is None or gym is None:
         raise RuntimeError("Stable-Baselines3 or gymnasium not available")
     os.makedirs(log_dir, exist_ok=True)
     env = DummyVecEnv([lambda: MockClashEnv()])
-    model = PPO("MlpPolicy", env, verbose=1, learning_rate=lr, tensorboard_log=log_dir)
+    model = PPO("MlpPolicy", env, verbose=1, learning_rate=lr, ent_coef=ent_coef, tensorboard_log=log_dir)
     model.learn(total_timesteps=total_timesteps)
     return model
 
@@ -98,7 +98,8 @@ class OfflineLogEnv(gym.Env if gym else object):  # type: ignore[misc]
         if gym is None:
             raise RuntimeError("gymnasium not available")
         self.logs_dir = logs_dir
-        self.files = [os.path.join(logs_dir, f) for f in os.listdir(logs_dir) if f.endswith(".jsonl")]
+        os.makedirs(self.logs_dir, exist_ok=True)
+        self.files = [os.path.join(self.logs_dir, f) for f in os.listdir(self.logs_dir) if f.endswith(".jsonl")]
         self.file_idx = 0
         self.fp = None
         self.action_space = spaces.MultiDiscrete([4, 9, 5])
@@ -153,11 +154,11 @@ class OfflineLogEnv(gym.Env if gym else object):  # type: ignore[misc]
         return self.curr_obs, reward, done, False, {}
 
 
-def build_and_train_offline(logs_dir: str = "logs/episodes", total_timesteps: int = 1_000_000, lr: float = 3e-4, log_dir: str = "runs/offline"):
+def build_and_train_offline(logs_dir: str = "logs/episodes", total_timesteps: int = 1_000_000, lr: float = 3e-4, ent_coef: float = 0.01, log_dir: str = "runs/offline"):
     if PPO is None or gym is None:
         raise RuntimeError("Stable-Baselines3 or gymnasium not available")
     os.makedirs(log_dir, exist_ok=True)
     env = DummyVecEnv([lambda: OfflineLogEnv(logs_dir)])
-    model = PPO("MlpPolicy", env, verbose=1, learning_rate=lr, tensorboard_log=log_dir)
+    model = PPO("MlpPolicy", env, verbose=1, learning_rate=lr, ent_coef=ent_coef, tensorboard_log=log_dir)
     model.learn(total_timesteps=total_timesteps)
     return model
