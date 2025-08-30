@@ -44,3 +44,11 @@ logging:
   file: logs/run.log
   max_bytes: 1048576
   backup_count: 3
+ai:
+  openai_api_key: ""  # Set your OpenAI API key here
+  model: "gpt-4o"  # GPT-4 Vision model
+  max_tokens: 1000
+  temperature: 0.3
+  analysis_interval: 2.0  # Seconds between AI analysis
+  enable_narration: true  # Enable streamer-like commentary
+  vision_detail: "low"  # low/high for cost control
