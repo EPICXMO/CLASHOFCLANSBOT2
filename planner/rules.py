@@ -1,3 +1,4 @@
+import os
 import random
 import logging
 from typing import Optional, Tuple, List
@@ -21,6 +22,9 @@ class RulePlanner:
 
     def __init__(self):
         self.bandit = EpsilonGreedy(k=4, epsilon=0.3)
+        self.episode_idx = 0
+        self._store_path = os.path.join("logs", "bandit.json")
+        self._load_state()
 
     def enemy_push_detected(self, ui: dict) -> bool:
         yolo = ui.get("yolo", {})
@@ -112,6 +116,7 @@ class RulePlanner:
         # Update bandit if index in range
         if 0 <= card_idx < self.bandit.k:
             self.bandit.update(card_idx, reward)
+            self._save_state()
 
     def _defensive_point(self, ui: dict, frame: np.ndarray) -> Tuple[float, float]:
         # pick a point near the closest my_tower to bottom
@@ -150,4 +155,43 @@ class RulePlanner:
 
     def set_exploration(self, episode_idx: int) -> None:
         # Decay epsilon from 0.3 to 0.05 over 100 episodes
-        self.bandit.decay(episode_idx, total=100, min_epsilon=0.05)
+        self.episode_idx = max(self.episode_idx, int(episode_idx))
+        self.bandit.decay(self.episode_idx, total=100, min_epsilon=0.05)
+        self._save_state()
+
+    # Persistence helpers
+    def _save_state(self) -> None:
+        try:
+            os.makedirs(os.path.dirname(self._store_path), exist_ok=True)
+            data = {
+                "k": self.bandit.k,
+                "epsilon": self.bandit.epsilon,
+                "counts": self.bandit.counts,
+                "values": self.bandit.values,
+                "episode_idx": self.episode_idx,
+            }
+            import json
+            with open(self._store_path, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+        except Exception:
+            pass
+
+    def _load_state(self) -> None:
+        try:
+            import json
+            if not os.path.exists(self._store_path):
+                return
+            with open(self._store_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            k = int(data.get("k", self.bandit.k))
+            self.bandit.ensure_arms(k)
+            self.bandit.epsilon = float(data.get("epsilon", self.bandit.epsilon))
+            counts = data.get("counts")
+            values = data.get("values")
+            if isinstance(counts, list) and isinstance(values, list):
+                if len(counts) == self.bandit.k and len(values) == self.bandit.k:
+                    self.bandit.counts = [int(x) for x in counts]
+                    self.bandit.values = [float(x) for x in values]
+            self.episode_idx = int(data.get("episode_idx", 0))
+        except Exception:
+            pass

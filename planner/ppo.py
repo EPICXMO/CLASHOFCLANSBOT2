@@ -109,6 +109,11 @@ class OfflineLogEnv(gym.Env if gym else object):  # type: ignore[misc]
         self.curr_obs = None
 
     def _obs_from_record(self, rec: dict) -> np.ndarray:
+        # Prefer saved 'state' vector if present
+        st = rec.get("state")
+        if isinstance(st, list):
+            arr = np.array(st, dtype=np.float32)
+            return arr
         elixir_norm = float(rec.get("elixir", 0)) / 10.0
         my = np.ones(3, dtype=np.float32)  # placeholder
         en = np.ones(3, dtype=np.float32)

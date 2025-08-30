@@ -142,8 +142,19 @@ class UIDetector:
             ui["rewards"] = self.ocr.read_rewards(frame, tuple(self.rewards_roi_center))
         except Exception:
             ui["rewards"] = {"gold": 0, "cards": 0}
-        # In-battle heuristic: towers present or elixir showing
-        ui["in_battle"] = bool(ui["yolo"]["my_tower"] or ui["yolo"]["enemy_tower"] or ui["yolo"]["elixir_bar"] or ui.get("elixir", 0) > 0)
+        # In-battle heuristic: towers present, elixir showing, or non-empty hand text
+        hand = ui.get("hand_cards", [])
+        try:
+            in_hand = any(bool(n) for n in hand)
+        except Exception:
+            in_hand = False
+        ui["in_battle"] = bool(
+            ui["yolo"]["my_tower"]
+            or ui["yolo"]["enemy_tower"]
+            or ui["yolo"].get("elixir_bar", [])
+            or ui.get("elixir", 0) > 0
+            or in_hand
+        )
         return ui
 
     def _predict_yolo(self, frame: np.ndarray) -> List[Dict]:
