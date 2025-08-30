@@ -1,0 +1,33 @@
+# GPU-accelerated requirements for local high-performance setup
+# Install CUDA-enabled PyTorch first, then other dependencies
+
+# CUDA-enabled PyTorch (RTX 3090 supports CUDA 11.8+, 12.x)
+torch>=2.1.0+cu121
+torchaudio>=2.1.0+cu121
+torchvision>=0.16.0+cu121
+
+# Core dependencies
+adbutils>=2.8.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+pillow>=10.0.0
+pyyaml>=6.0.1
+loguru>=0.7.2
+
+# ML/AI dependencies with GPU support
+gymnasium>=0.29.1
+stable-baselines3[extra]>=2.3.0
+
+# OCR with GPU support (PaddleOCR GPU variant)
+paddlepaddle-gpu>=2.5.0
+paddleocr>=2.7.0.3
+
+# YOLO with GPU support
+ultralytics>=8.2.0
+
+# Performance monitoring
+psutil>=5.9.0
+pynvml>=11.5.0
+
+# Development tools
+pytest>=7.4.0

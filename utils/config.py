@@ -29,6 +29,14 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "rewards_roi_bottom": [0.4, 0.85, 0.6, 0.92],
         "upgrade_roi": [0.45, 0.55, 0.55, 0.65],
     },
+    "hardware": {
+        "use_gpu": True,
+        "gpu_device": "auto",  # "auto", "cpu", "cuda", "cuda:0", etc.
+        "enable_gpu_ocr": True,
+        "enable_gpu_yolo": True,
+        "performance_mode": "high",  # "low", "medium", "high"
+        "monitor_performance": True,
+    },
     "rl": {
         "learning_rate": 3e-4,
         "gamma": 0.99,

@@ -217,6 +217,13 @@ def main():
 
     cfg = load_config()
     setup_logging(cfg)
+    
+    # Log hardware information for optimization insights
+    try:
+        from utils.hardware import log_hardware_info
+        log_hardware_info(cfg)
+    except ImportError:
+        logger.debug("Hardware optimization module not available")
 
     if args.mode == "play":
         try:
