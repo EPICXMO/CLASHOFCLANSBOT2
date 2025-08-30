@@ -5,6 +5,7 @@ This is a modular Clash Royale automation bot scaffold designed for educational 
 Important: This project is for educational purposes only. Do not use it to violate any game’s Terms of Service.
 
 Features
+- **AI Vision**: Local LLaVA models for strategic game analysis (RTX 3090 optimized, no API costs)
 - Vision: OCR (PaddleOCR) and YOLO11 (`ultralytics`) integration. If YOLO is unavailable or low‑confidence, fall back to fixed ROI heuristics. Auto‑saves unknown ROI crops to `data/crops/` for future fine‑tuning.
 - State: Tracks elixir, gold, daily wins (OCR), hand cards (OCR placeholder), and tower HPs (placeholder via YOLO+OCR later).
 - Planning:
@@ -27,6 +28,18 @@ Quick Start (Windows/BlueStacks)
 - Torch on Windows: If `pip install torch` fails, install from https://pytorch.org/get-started/locally/ matching your CUDA. CPU works but is slower.
 - For faster test-only setup: `pip install -r requirements-ci.txt`
 
+2a) **NEW: Local AI Vision Setup (RTX 3090 Optimized)**
+- **One-time setup**: `python setup_local_ai.py`
+- **Features**:
+  - ✅ No API costs - completely free
+  - ✅ LLaVA multimodal AI models  
+  - ✅ RTX 3090 GPU acceleration
+  - ✅ Strategic battle analysis
+  - ✅ Offline capable
+- **Requirements**: RTX 3090 (or other CUDA GPU), 16GB+ RAM
+- **First run**: Downloads ~13GB model (one time)
+- **Usage**: `python intelligent_main.py --mode local`
+
 3) Configure (ROIs/YOLO)
 - Edit `config.yaml` (ADB host/port, OCR, YOLO, RL params, 2025 UI ROIs):
   - `ocr.elixir_roi: [0.4,0.92,0.6,0.98]`
@@ -39,7 +52,8 @@ Quick Start (Windows/BlueStacks)
   - YOLO: `vision.enable_yolo: true`, `vision.yolo_model: yolo11n.pt` (imgsz ~320 by default via Ultralytics).
 
 4) Run (play loop)
-- `python main.py --mode play --seed 123`
+- **Standard**: `python main.py --mode play --seed 123`
+- **AI Enhanced**: `python intelligent_main.py --mode local --seed 123` (requires setup_local_ai.py)
 
 5) Train PPO
 - Online mock env: `python train.py --timesteps 2000000 --checkpoint checkpoints/run1`
