@@ -1,0 +1,63 @@
+# High-performance configuration for local setup with NVIDIA RTX 3090
+# Copy this to config.yaml or rename to config.yaml for use
+
+resolution:
+  width: 1920
+  height: 1080
+
+adb:
+  host: 127.0.0.1
+  port: 5555
+  connect_timeout_s: 5
+  dry_run: false  # Set to true for testing without real device actions
+  serial: 127.0.0.1:5555
+
+ocr:
+  enabled: true
+  lang: en
+  elixir_roi: [0.4, 0.92, 0.6, 0.98]
+  gold_roi: [0.85, 0.02, 0.95, 0.08]
+  daily_wins_roi: [0.65, 0.02, 0.78, 0.08]
+
+vision:
+  save_unknown_crops: true
+  crops_dir: data/crops
+  enable_yolo: true
+  yolo_model: yolo11n.pt
+  yolo_conf_thresh: 0.35
+  yolo_imgsz: 640  # Higher resolution for RTX 3090 (auto-adjusted by hardware detection)
+  battle_roi: [0.4, 0.85, 0.6, 0.92]
+  cards_centers:
+    - [0.2, 0.92]
+    - [0.4, 0.92]
+    - [0.6, 0.92]
+    - [0.8, 0.92]
+  safe_zone_roi: [0.1, 0.55, 0.9, 0.75]
+  rewards_roi_center: [0.3, 0.4, 0.7, 0.6]
+  rewards_roi_bottom: [0.4, 0.85, 0.6, 0.92]
+  upgrade_roi: [0.45, 0.55, 0.55, 0.65]
+
+# GPU acceleration settings for high-performance local setup
+hardware:
+  use_gpu: true              # Enable GPU acceleration
+  gpu_device: "auto"         # "auto", "cpu", "cuda", "cuda:0", etc.
+  enable_gpu_ocr: true       # Use GPU for PaddleOCR
+  enable_gpu_yolo: true      # Use GPU for YOLO11
+  performance_mode: "high"   # "low", "medium", "high" - optimizes for RTX 3090
+  monitor_performance: true  # Log performance metrics
+
+rl:
+  learning_rate: 3.0e-4
+  gamma: 0.99
+  n_steps: 2048
+  batch_size: 64    # Can be increased with more GPU memory
+  ent_coef: 0.01
+  vf_coef: 0.5
+  gae_lambda: 0.95
+  clip_range: 0.2
+
+logging:
+  level: INFO
+  file: logs/run.log
+  max_bytes: 1048576
+  backup_count: 3

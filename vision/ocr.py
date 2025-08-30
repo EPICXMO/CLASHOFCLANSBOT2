@@ -12,16 +12,47 @@ except Exception:  # pragma: no cover
 
 
 class OCR:
-    def __init__(self, enabled: bool = True, lang: str = "en"):
+    def __init__(self, enabled: bool = True, lang: str = "en", config: Optional[Dict] = None):
         self.enabled = enabled and (PaddleOCR is not None)
         self.lang = lang
         self._ocr = None
+        self.use_gpu = False
+        
         if self.enabled:
             try:
-                self._ocr = PaddleOCR(use_angle_cls=True, lang=self.lang)
+                # Check for GPU acceleration settings
+                if config:
+                    try:
+                        from utils.hardware import get_performance_settings
+                        hw_settings = get_performance_settings(config)
+                        self.use_gpu = hw_settings.get("ocr_use_gpu", False)
+                    except ImportError:
+                        logger.debug("Hardware optimization not available for OCR")
+                
+                # Initialize PaddleOCR with GPU support if available
+                ocr_kwargs = {
+                    "use_angle_cls": True,
+                    "lang": self.lang,
+                    "use_gpu": self.use_gpu,
+                }
+                
+                if self.use_gpu:
+                    logger.info("Initializing PaddleOCR with GPU acceleration")
+                    
+                self._ocr = PaddleOCR(**ocr_kwargs)
+                
             except Exception as e:  # pragma: no cover
                 logger.warning("PaddleOCR init failed: %s", e)
-                self.enabled = False
+                # Try fallback without GPU
+                if self.use_gpu:
+                    try:
+                        logger.info("Falling back to CPU-only PaddleOCR")
+                        self._ocr = PaddleOCR(use_angle_cls=True, lang=self.lang, use_gpu=False)
+                        self.use_gpu = False
+                    except Exception:
+                        self.enabled = False
+                else:
+                    self.enabled = False
 
     def read_text(self, image: np.ndarray) -> List[str]:
         if not self.enabled or self._ocr is None:

@@ -31,7 +31,7 @@ def save_crop(label: str, img: np.ndarray, box: Tuple[int, int, int, int], crops
 class UIDetector:
     def __init__(self, cfg):
         ocr_cfg = cfg.get("ocr", {})
-        self.ocr = OCR(enabled=ocr_cfg.get("enabled", True), lang=ocr_cfg.get("lang", "en"))
+        self.ocr = OCR(enabled=ocr_cfg.get("enabled", True), lang=ocr_cfg.get("lang", "en"), config=cfg)
         self.elixir_roi = tuple(ocr_cfg.get("elixir_roi", [0.4, 0.92, 0.6, 0.98]))  # type: ignore
         self.gold_roi = tuple(ocr_cfg.get("gold_roi", [0.85, 0.02, 0.95, 0.08]))  # type: ignore
         self.daily_wins_roi = tuple(ocr_cfg.get("daily_wins_roi", [0.65, 0.02, 0.78, 0.08]))  # type: ignore
@@ -49,11 +49,32 @@ class UIDetector:
         self.enable_yolo = bool(vis_cfg.get("enable_yolo", True))
         self.yolo_conf = float(vis_cfg.get("yolo_conf_thresh", 0.35))
         self.yolo = None
+        self.yolo_device = "cpu"
+        self.yolo_half = False
+        
+        # Import hardware utilities for GPU optimization
+        try:
+            from utils.hardware import get_performance_settings
+            hw_settings = get_performance_settings(cfg)
+            self.yolo_device = hw_settings.get("device", "cpu")
+            self.yolo_half = hw_settings.get("half_precision", False)
+            # Update image size from hardware optimization
+            vis_cfg["yolo_imgsz"] = hw_settings.get("yolo_imgsz", vis_cfg.get("yolo_imgsz", 320))
+        except ImportError:
+            logger.debug("Hardware optimization not available")
+        
         if self.enable_yolo:
             try:  # pragma: no cover - heavy dep
                 from ultralytics import YOLO  # type: ignore
                 model_path = str(vis_cfg.get("yolo_model", "yolo11n.pt"))
                 self.yolo = YOLO(model_path)
+                
+                # Configure device and precision
+                if self.yolo_device != "cpu":
+                    logger.info(f"Configuring YOLO for device: {self.yolo_device}")
+                    if self.yolo_half:
+                        logger.info("Enabling half-precision (FP16) for YOLO")
+                
             except Exception as e:
                 logging.getLogger(__name__).warning("YOLO init failed: %s", e)
                 self.yolo = None
@@ -163,18 +184,28 @@ class UIDetector:
             return []
         dets: List[Dict] = []
         try:  # pragma: no cover
+            # Get optimized image size from config/hardware
             imgsz = 320
-            try:
-                imgsz = int(self.yolo_conf)  # placeholder; corrected below
-            except Exception:
-                pass
-            # read configured imgsz
             try:
                 from utils.config import load_config
                 imgsz = int(load_config().get("vision", {}).get("yolo_imgsz", 320))
             except Exception:
                 imgsz = 320
-            results = self.yolo.predict(source=frame, conf=self.yolo_conf, imgsz=imgsz, verbose=False)
+            
+            # Run prediction with optimized settings
+            predict_kwargs = {
+                "source": frame,
+                "conf": self.yolo_conf,
+                "imgsz": imgsz,
+                "verbose": False,
+                "device": self.yolo_device,
+            }
+            
+            # Add half precision if enabled for RTX 3090
+            if self.yolo_half and self.yolo_device.startswith("cuda"):
+                predict_kwargs["half"] = True
+            
+            results = self.yolo.predict(**predict_kwargs)
             if not results:
                 return []
             res = results[0]
