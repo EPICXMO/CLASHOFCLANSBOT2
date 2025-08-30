@@ -39,6 +39,13 @@ rl:
   vf_coef: 0.5
   gae_lambda: 0.95
   clip_range: 0.2
+ai:
+  openai_api_key: ""  # Set your OpenAI API key here
+  analysis_interval: 2.0
+  enable_narration: true
+  model: "gpt-4o"  # Use GPT-4 with vision capabilities
+  max_tokens: 500
+  temperature: 0.7
 logging:
   level: INFO
   file: logs/run.log
