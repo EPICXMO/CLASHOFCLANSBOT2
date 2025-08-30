@@ -21,7 +21,7 @@ class RulePlanner:
     """
 
     def __init__(self):
-        self.bandit = EpsilonGreedy(k=4, epsilon=0.3)
+        self.bandit = EpsilonGreedy(k=4, epsilon=0.5)
         self.episode_idx = 0
         self._store_path = os.path.join("logs", "bandit.json")
         self._load_state()
@@ -48,20 +48,22 @@ class RulePlanner:
         safe_zone = ui.get("safe_zone")
 
         if elixir < 4:
+            logger.info("Thought: Low elixir (%d) — waiting 0.5s before next try", elixir)
             return None
 
         # Defensive preference if push detected
         if self.enemy_push_detected(ui):
             self.bandit.ensure_arms(max(4, len(card_slots)))
             idx = self._select_card_index(card_slots)
-            # Deploy close to my towers (fallback safe zone)
             target = self._defensive_point(ui, frame)
+            logger.info("Thought: Enemy push detected — defending with card %d at defensive point", idx)
             return (idx, target)
 
         # Otherwise random card to safe zone
         self.bandit.ensure_arms(max(4, len(card_slots)))
         idx = self._select_card_index(card_slots)
         target = self._offensive_point(ui, frame)
+        logger.info("Thought: No push — attacking with card %d at offensive point", idx)
         return (idx, target)
 
     @staticmethod
@@ -79,6 +81,7 @@ class RulePlanner:
         return (x, y)
 
     def handle_progression(self, controller, ui: dict) -> None:
+        logger.info("Thought: Checking progression — rewards/chests/upgrades")
         # Tap rewards button (YOLO or ROI fallbacks)
         rb = None
         yb = ui.get("yolo", {}).get("rewards_button", [])
@@ -88,11 +91,13 @@ class RulePlanner:
         if rb:
             x1, y1, x2, y2 = rb
             controller.click(int((x1 + x2) / 2), int((y1 + y2) / 2))
+            logger.info("Thought: Collecting rewards via rewards button")
 
         # Tap chests if detected by YOLO
         for ch in ui.get("yolo", {}).get("chest", [])[:4]:
             x1, y1, x2, y2 = ch
             controller.click(int((x1 + x2) / 2), int((y1 + y2) / 2))
+            logger.info("Thought: Opening chest at (%d,%d)", int((x1 + x2) / 2), int((y1 + y2) / 2))
 
         # Tap upgrade button (YOLO or ROI) if we likely have enough gold
         ub = None
@@ -104,6 +109,7 @@ class RulePlanner:
         if ub and gold >= 100:
             x1, y1, x2, y2 = ub
             controller.click(int((x1 + x2) / 2), int((y1 + y2) / 2))
+            logger.info("Thought: Upgrading a card (gold=%d)", gold)
 
     # Bandit helpers
     def _select_card_index(self, card_slots) -> int:
@@ -154,9 +160,9 @@ class RulePlanner:
         return self._random_point_in_zone(frame, None)
 
     def set_exploration(self, episode_idx: int) -> None:
-        # Decay epsilon from 0.3 to 0.05 over 100 episodes
+        # Decay epsilon from 0.5 to 0.05 over 50 episodes
         self.episode_idx = max(self.episode_idx, int(episode_idx))
-        self.bandit.decay(self.episode_idx, total=100, min_epsilon=0.05)
+        self.bandit.decay(self.episode_idx, total=50, min_epsilon=0.05)
         self._save_state()
 
     # Persistence helpers

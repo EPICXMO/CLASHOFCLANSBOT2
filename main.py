@@ -77,6 +77,7 @@ def play_loop(cfg: Dict[str, Any], seed: Optional[int] = None):
     start_ts = time.time()
     last_action_ts = 0.0
     last_force_tap_ts = 0.0
+    detection_failures = 0
     while True:
         frame = capture.screenshot()
         ui = detector.detect_ui(frame)
@@ -114,6 +115,17 @@ def play_loop(cfg: Dict[str, Any], seed: Optional[int] = None):
                 controller.click(int((x1 + x2) / 2), int((y1 + y2) / 2))
                 logger.info("Force Tap: battle ROI (startup)")
                 last_force_tap_ts = time.time()
+            # Count detection failures and force start if needed
+            has_any_signal = bool(troop_names or ui.get("elixir", 0) > 0 or any(ui.get("yolo", {}).get(k) for k in ["button", "rewards_button", "upgrade_button"]))
+            if not has_any_signal:
+                detection_failures += 1
+            else:
+                detection_failures = 0
+            if detection_failures >= 5 and (time.time() - last_force_tap_ts) > 1.0:
+                x1, y1, x2, y2 = ui.get("battle_button", (int(0.4*frame.shape[1]), int(0.85*frame.shape[0]), int(0.6*frame.shape[1]), int(0.92*frame.shape[0])))
+                controller.click(int((x1 + x2) / 2), int((y1 + y2) / 2))
+                logger.info("Thought: Screen not recognized — assuming main, tapping center battle")
+                last_force_tap_ts = time.time()
 
         # Handle popups: YOLO 'button' with OCR text 'OK'
         try:
@@ -137,8 +149,10 @@ def play_loop(cfg: Dict[str, Any], seed: Optional[int] = None):
                 # Select card (approximate slot centers)
                 slots = ui.get("card_slots", {})
                 px, py = slots.get(card_idx, (int(0.2 * frame.shape[1]), int(0.92 * frame.shape[0])))
+                logger.info("Thought: Selecting card slot %d at (%d,%d)", card_idx, px, py)
                 controller.click(px, py)
                 time.sleep(0.1)
+                logger.info("Thought: Deploying at normalized (%.2f, %.2f)", nx, ny)
                 controller.tap_norm(nx, ny)
                 # Compute reward: gold delta + crown bonus + win bonus
                 gold = int(ui.get("gold", 0))

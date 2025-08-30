@@ -198,6 +198,8 @@ class UIDetector:
         # Simple heuristics: map to our target label set
         if "reward" in n:
             return "rewards_button"
+        if "battle" in n or "play" in n or "start" in n or "fight" in n:
+            return "button"
         if "upgrade" in n:
             return "upgrade_button"
         if "chest" in n:
