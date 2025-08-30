@@ -4,7 +4,8 @@ from vision.ocr import OCR
 
 
 def test_read_rewards_with_mocked_text(monkeypatch):
-    o = OCR(enabled=False)
+    o = OCR(enabled=False)  # Keep disabled to avoid PaddleOCR dependency 
+    o.enabled = True  # But enable after init to allow mocking
     def fake_read_text(_img):
         return ["100 Gold", "3 Cards"]
     monkeypatch.setattr(o, "read_text", fake_read_text)
