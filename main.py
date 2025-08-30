@@ -1,78 +1,169 @@
-﻿import time, subprocess, numpy as np, cv2
-from ultralytics import YOLO
-from paddleocr import PaddleOCR
+import argparse
+import time
+import logging
+import json
+import os
+import random
+from typing import Optional, Dict, Any
 
-# --- ADB helpers ---
-def adb(*args):
-    return subprocess.run(["adb", *args], capture_output=True)
+import numpy as np
 
-def get_frame_bgr():
-    out = adb("exec-out", "screencap", "-p").stdout
-    if not out:
-        raise RuntimeError("No frame from ADB. Is BlueStacks ADB enabled and connected?")
-    arr = np.frombuffer(out, np.uint8)
-    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-    if img is None:
-        raise RuntimeError("Failed to decode screencap PNG")
-    return img
+from utils.config import load_config
+from utils.logging import setup_logging
+from actions.adb import ADBController
+from vision.capture import Capture
+from vision.detect import UIDetector
+from state import GameState
+from planner.rules import RulePlanner
 
-def tap(x, y):
-    adb("shell", "input", "tap", str(int(x)), str(int(y)))
 
-# --- Perception ---
-yolo = YOLO("yolo11n.pt")  # downloads on first run
-ocr = PaddleOCR(lang="en")
+logger = logging.getLogger(__name__)
 
-def find_and_tap_text(frame_bgr, keywords=("train", "train troops", "ok", "continue")):
-    res = ocr.ocr(frame_bgr, cls=True)
-    for block in res:
-        for line in block:
-            box, (txt, conf) = line
-            if conf is None:
-                continue
-            t = (txt or "").strip().lower()
-            if any(k in t for k in keywords):
-                xs = [p[0] for p in box]; ys = [p[1] for p in box]
-                cx, cy = sum(xs)/4.0, sum(ys)/4.0
-                tap(cx, cy)
-                return True
-    return False
 
-def click_first_detection(frame_bgr, min_conf=0.5):
-    r = yolo.predict(source=frame_bgr, imgsz=640, conf=min_conf, verbose=False)[0]
-    if len(r.boxes) == 0:
-        return False
-    idx = int(r.boxes.conf.argmax())
-    x1, y1, x2, y2 = map(float, r.boxes.xyxy[idx].cpu().numpy())
-    tap((x1 + x2) / 2, (y1 + y2) / 2)
-    return True
+class EpisodeLogger:
+    def __init__(self, out_dir: str = "logs/episodes"):
+        self.out_dir = out_dir
+        os.makedirs(self.out_dir, exist_ok=True)
+        ts = int(time.time())
+        self.path = os.path.join(self.out_dir, f"ep_{ts}.jsonl")
+        self._f = open(self.path, "a", encoding="utf-8")
 
-def skill_open_train_troops():
-    frame = get_frame_bgr()
-    if find_and_tap_text(frame, ("train troops", "train")):
-        time.sleep(0.6)
-        frame2 = get_frame_bgr()
-        _ = find_and_tap_text(frame2, ())  # parse only; no extra tap
-        return True
-    if click_first_detection(frame, min_conf=0.6):
-        time.sleep(0.6)
-        frame2 = get_frame_bgr()
-        if find_and_tap_text(frame2, ("train troops", "train")):
-            return True
-    return False
+    def log(self, record: dict) -> None:
+        try:
+            self._f.write(json.dumps(record) + "\n")
+            self._f.flush()
+        except Exception:
+            pass
 
-def skill_clear_simple_popups():
-    frame = get_frame_bgr()
-    return find_and_tap_text(frame, ("ok", "continue", "confirm", "close"))
+    def close(self) -> None:
+        try:
+            self._f.close()
+        except Exception:
+            pass
 
-def main_loop():
-    print("Starting v0 loop. CTRL+C to stop.")
+
+def play_loop(cfg: Dict[str, Any], seed: Optional[int] = None):
+    adb_cfg = cfg.get("adb", {})
+    controller = ADBController(
+        host=adb_cfg.get("host", "127.0.0.1"),
+        port=int(adb_cfg.get("port", 5555)),
+        connect_timeout_s=int(adb_cfg.get("connect_timeout_s", 5)),
+        dry_run=bool(adb_cfg.get("dry_run", True)),
+    )
+    controller.connect()
+
+    capture = Capture(controller)
+    detector = UIDetector(cfg)
+    planner = RulePlanner()
+    state = GameState()
+
+    prev_gold = 0
+    prev_daily_wins = 0
+    prev_enemy_towers = 3
+    ep = EpisodeLogger()
+    pending = None
+
+    def state_vec(s: GameState):
+        elixir_norm = s.elixir / 10.0
+        my = (np.array(s.tower_hps, dtype=np.float32)[:3] if len(s.tower_hps) else np.zeros(3)) / 100.0
+        en = (np.array(s.enemy_tower_hps, dtype=np.float32)[:3] if len(s.enemy_tower_hps) else np.zeros(3)) / 100.0
+        hand = np.ones(4, dtype=np.float32) / 4.0
+        return np.concatenate([[elixir_norm], my, en, hand]).astype(float).tolist()
+
+    logger.info("Starting play loop (dry_run=%s)", controller.dry_run)
+    last_action_ts = 0.0
     while True:
-        if skill_clear_simple_popups():
-            time.sleep(0.5); continue
-        if skill_open_train_troops():
-            time.sleep(1.0); continue
-        time.sleep(0.3)
+        frame = capture.screenshot()
+        ui = detector.detect_ui(frame)
+        state.update_from_frame(frame, ui)
+
+        # Tap battle button region
+        if ui.get("battle_button") is not None:
+            x1, y1, x2, y2 = ui["battle_button"]
+            controller.click(int((x1 + x2) / 2), int((y1 + y2) / 2))
+
+        # Handle popups: YOLO 'button' with OCR text 'OK'
+        try:
+            for box in ui.get("yolo", {}).get("button", []):
+                x1, y1, x2, y2 = box
+                crop = frame[y1:y2, x1:x2]
+                texts = detector.ocr.read_text(crop)
+                if any("ok" in t.lower() for t in texts):
+                    controller.click(int((x1 + x2) / 2), int((y1 + y2) / 2))
+        except Exception:
+            pass
+
+        # Basic action cadence
+        now = time.time()
+        if now - last_action_ts > 0.8:
+            plan = planner.plan_battle(state, frame)
+            if plan is not None:
+                card_idx, (nx, ny) = plan
+                # Select card (approximate slot centers)
+                slots = ui.get("card_slots", {})
+                px, py = slots.get(card_idx, (int(0.2 * frame.shape[1]), int(0.92 * frame.shape[0])))
+                controller.click(px, py)
+                time.sleep(0.1)
+                controller.tap_norm(nx, ny)
+                # Compute reward: gold delta + crown bonus + win bonus
+                gold = int(ui.get("gold", 0))
+                daily_wins = int(ui.get("daily_wins", 0))
+                gold_delta = max(0, gold - prev_gold)
+                enemy_tower_count = len(ui.get("yolo", {}).get("enemy_tower", [])) or prev_enemy_towers
+                crown_bonus = 5 if enemy_tower_count < prev_enemy_towers else 0
+                win_bonus = 10 if daily_wins > prev_daily_wins else 0
+                reward_signal = gold_delta + crown_bonus + win_bonus
+                planner.record_outcome(card_idx, float(reward_signal))
+                obs = state_vec(state)
+                record = {
+                    "t": time.time(),
+                    "state": obs,
+                    "action": {"card": card_idx, "nx": nx, "ny": ny},
+                    "reward": reward_signal,
+                }
+                if pending is not None:
+                    pending["next_state"] = obs
+                    ep.log(pending)
+                pending = record
+                logger.info(
+                    "ACTION card=%d target=(%.3f, %.3f) reward=%d (gold=%d, wins=%d, crowns=%d)",
+                    card_idx,
+                    nx,
+                    ny,
+                    reward_signal,
+                    gold,
+                    daily_wins,
+                    3 - enemy_tower_count,
+                )
+                prev_gold = gold
+                prev_daily_wins = daily_wins
+                prev_enemy_towers = enemy_tower_count
+                last_action_ts = now
+
+        # Progression actions: rewards/upgrade/chests taps
+        planner.handle_progression(controller, ui)
+
+        time.sleep(0.2)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", choices=["play"], default="play")
+    parser.add_argument("--seed", type=int, default=123, help="Deterministic seed")
+    args = parser.parse_args()
+
+    cfg = load_config()
+    setup_logging(cfg)
+
+    if args.mode == "play":
+        try:
+            random.seed(args.seed)
+            np.random.seed(args.seed)
+        except Exception:
+            pass
+        play_loop(cfg, seed=args.seed)
+
 
 if __name__ == "__main__":
-    main_loop()
+    main()
+

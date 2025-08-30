@@ -1,5 +1,11 @@
-﻿ultralytics
-paddlepaddle
-paddleocr
-opencv-python
-numpy
+adbutils>=2.8.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+pillow>=10.0.0
+pyyaml>=6.0.1
+loguru>=0.7.2
+gymnasium>=0.29.1
+stable-baselines3[extra]>=2.3.0
+paddleocr>=2.7.0.3
+ultralytics>=8.2.0
+torch>=2.1.0

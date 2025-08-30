@@ -1,6 +1,11 @@
-﻿.venv/
 __pycache__/
-*.pyc
-*.png
-*.mkv
+.pytest_cache/
+.venv/
 logs/
+checkpoints/
+data/crops/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+
