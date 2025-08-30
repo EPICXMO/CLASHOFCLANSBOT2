@@ -1,3 +1,37 @@
+# Clash Royale Bot (Educational, 2025 UI) 🤖
+
+**⚡ NOW WITH AI-POWERED INTELLIGENCE! ⚡**
+
+This repository now includes a revolutionary AI-powered bot that uses **GPT-4 Vision** to see, understand, and play like a human. Unlike traditional bots that follow scripts, this AI bot actually comprehends what's happening on screen and makes strategic decisions.
+
+## 🚀 NEW: AI-Powered Intelligent Bot
+
+### Quick Start (AI Mode)
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Add OpenAI API key to config.yaml:
+# ai:
+#   openai_api_key: "sk-your-key-here"
+
+# Run the intelligent bot
+python intelligent_main.py --mode intelligent
+```
+
+**What you'll see:**
+```
+🧠 AI UNDERSTANDS: Enemy deployed Giant, perfect time to counter-pressure!
+🎤 AI SAYS: "Big push coming! I'll attack the other side!"
+🤖 AI Decision: deploy_card - Strategic counter-attack
+```
+
+📚 **[Complete AI Guide](AI_README.md)** - Full documentation for the intelligent system
+
+---
+
+# Traditional Bot (Original System)
+
 Clash Royale Bot (Educational, 2025 UI)
 
 This is a modular Clash Royale automation bot scaffold designed for educational use. It plays via ADB on an Android emulator (e.g., BlueStacks), uses OCR + YOLO11 or heuristics (fixed ROIs) for vision, supports a rule-based planner with a bandit, and a PPO RL agent (Stable-Baselines3). It’s Windows‑friendly, dry‑run safe, and optimized for repeatable loops.
