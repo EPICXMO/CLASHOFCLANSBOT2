@@ -9,3 +9,4 @@ stable-baselines3[extra]>=2.3.0
 paddleocr>=2.7.0.3
 ultralytics>=8.2.0
 torch>=2.1.0
+openai>=1.12.0
